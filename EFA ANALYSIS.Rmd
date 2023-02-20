@@ -1,0 +1,256 @@
+---
+title: "EFA ANALYSIS"
+author: "Lucy Gitiria"
+date: "2023-02-18"
+output: html_document
+---
+##  PACKAGES NEEDED
+```{r, eval=False,warning = FALSE}
+library(readxl)
+library(lavaan)
+library(psych)
+library(tidyverse)
+library(polycor)
+library(kableExtra)
+library(apaTables)
+library(corrplot)
+library(semTools) # for additional functions in SEM
+library(semPlot) # for path diagram
+```
+
+#  DATA
+```{r}
+NSD2687_1_no_1 <- read_excel("D:/THESIS 2022/2018 Data/Studiebarometeret 2018, faggruppe/NSD2687-1-no 1.xlsx")
+```
+#  DATA PREPARATION
+```{r, eval=FALSE}
+Data<-NSD2687_1_no_1
+preli.df<-Data[c(6,13,14,93:102)]
+apply(preli.df[1:13],2,table,exclude=NULL)#A glance at the subset data
+preli.df[1:13][preli.df[1:13]==9999]<-NA # change 9999 to NAs
+preli.df[1:13][preli.df[1:13]==999]<-NA # change 999 to NAs
+
+```
+#  SUBSET 6 STUDY PROGRAMS
+```{r, eval=FALSE}
+AKADM<-preli.df[preli.df$Utd_type == 'Ã˜KADM',]   # business and adminstration-Enterprising
+DATAIT<-preli.df[preli.df$Utd_type == 'DATA-IT',] # Conventional
+KUNST<-preli.df[preli.df$Utd_type == 'KUNST',]    # Artistic
+SIVING<-preli.df[preli.df$Utd_type == 'SIVING',]  # Investigative
+SYKEPLEIE<-preli.df[preli.df$Utd_type == 'SYKEPLEIE',] #Social
+TEKN.FAG<-preli.df[preli.df$Utd_type == 'TEKN-FAG',]   #Realistic
+
+# New Dataset
+#Put all data frames into list
+list.dfprel <- list(SIVING, TEKN.FAG, KUNST,SYKEPLEIE,AKADM,DATAIT)
+
+#Merge all data frames in list
+ANALYSIS.DATApreli<-Reduce(function(x, y) merge(x, y, all=TRUE), list.dfprel)
+#Remove NAs
+DF.ANALYSIS<-ANALYSIS.DATApreli[complete.cases(ANALYSIS.DATApreli[1:13]),]
+```
+
+##  DESCRIPTIVE STATISTICS
+```{r}
+describe(DF.ANALYSIS)
+```
+```{r}
+#Subset LO items
+data1<-DF.ANALYSIS[c(4:13)]
+apply(data1[1:10],2,table,exclude=NULL)#A glance at the subset data
+```
+# **EXPLORATORY FACTOR ANALYSIS**
+## EFA Data
+```{r}
+EFA_DATA<-data1
+```
+## Data Check
+EFA is a multivariate procedure that necessitates that the multidimensional position of each data point be considered.
+A group of measured variables might exhibit univariate normality and yet be multivariate non-normal. That is, the joint distribution of all the variables might be non-normal. The psych package offers an implementation of Mardia's multivariate tests (1970) and an accompanying Q–Q plot for multivariate checks. MVN package can check both uni and multivariate normality once.
+
+*Multivariate,Univariate Normality* 
+```{r, include=TRUE}
+library(MVN)
+# Multivariate,Univariate Normality and Descriptives
+result <- mvn(data= EFA_DATA, mvnTest="mardia",  univariateTest="AD")
+result
+#plot using kable
+kable(result$univariateNormality, booktabs=TRUE, format="markdown") #Not normal
+#Box plots from graphics package
+library(graphics)
+boxplot(EFA_DATA,notch=FALSE, boxfill= "royalblue", whiskcol="blue",pch=16,outcol="firebrick")
+#Histograms to illustrate 
+kable(mvn(data= EFA_DATA,univariatePlot="histogram"), booktabs=TRUE, format="markdown")# command for all in one
+```
+Skew > 2.0 or kurtosis > 7.0 would indicate severe univariate nonnormality (Curran et al., 1996). These univariate and multivariate statistics seem to indicate that all measured variables are non-normally distributeds so there should be much concerns about correlations being restricted due to variable distributions. 
+NOTE.Skew (departures from symmetry) and kurtosis (distributions with heavier or lighter tails and higher or flatter peaks) of all variables seem to be close to normal.
+
+*Bivariate characteristics of the data*
+```{r,include=TRUE}
+
+# Bivariate characteristics of the data #psych package (Revelle, 2019)
+pairs.panels(EFA_DATA, stars = TRUE) 
+
+```
+Correlations moderate and pretty close, data not normally distributed,linear relation exhibited.
+Use polychoric correlation matrix beacause the data is not normally distributed.
+```{r,warning = FALSE, eval=FALSE}
+attach (EFA_DATA)
+names(EFA_DATA)
+#Correlation matrix
+cor(EFA_DATA) #pearsons
+```
+*Compare correlation output with polychoric results below.*
+
+## **EFA using polychoric -using psych package**
+```{r,warning = FALSE }
+#Calculated Polychoric Correlation
+EFA_correl <- mixedCor(EFA_DATA, c=NULL, p=1:10)
+str(EFA_correl)
+```
+```{r}
+## Getting the correlation matrix of the dataset.
+EFA_polychoric <- EFA_correl$rho
+# Explore the correlation structure of the dataset.
+corrplot(EFA_polychoric, method = "number", order = "hclust")
+```
+
+*Suitability of data for Factor Analysis*
+To see if it’s ok to do EFA with the data, calculate Kaiser Meyer Olkin test (KMO) Bartlett’s test of sphericity. 
+```{r}
+#Using psych package (Revelle, 2019)
+#KMO test
+KMO(EFA_polychoric) 
+```
+KMO results indicate that the Overall MSA = 0.89 is close to 1 indicating it is meritorious.
+```{r}
+#Bartlett's test for sphericity
+cortest.bartlett(EFA_polychoric,n=6758)
+```
+Bartelett's test has a p value of 0- whic is below .05, thus reject the null-proceed with factor analysis.
+
+*Factor Extraction with Principal Axis Factoring ()PAF*
+```{r}
+# Use PAF on EFA_polychoric
+EFA_correl_pa <- fa(EFA_polychoric, nfactors =, fm = "pa")
+# Sort the communalities of EFA_correl_pa.
+sort(EFA_correl_pa$communality, decreasing = TRUE) 
+
+```
+```{r}
+# Sort the uniqueness of hsq_correl_pa.
+sort(EFA_correl_pa$uniqueness, decreasing = TRUE)
+```
+
+*Determining the number of factors*
+Use the correlation matrix, EFA_polychoric, computed based on the initial dataset.
+```{r}
+## Check out the scree test and the Kaiser-Guttman criterion.
+scree(EFA_polychoric)
+```
+
+```{r}
+# Use parallel analysis for estimation with the minres extraction method.
+fa.parallel(EFA_polychoric, n.obs = 6758, fm = "minres", fa = "fa", main = "Parallel Analysis Scree Plot")
+```
+- Keep one factor
+*Factor rotation*
+```{r}
+# EFA with 1 factors.
+f_EFA <- fa(EFA_polychoric, nfactors = 1)
+```
+
+```{r}
+# Check the default rotation method.
+f_EFA$rotation
+```
+```{r}
+# Oblimin rotation with 1 factors.
+f_EFA_oblimin <- fa(EFA_polychoric, nfactors = 1, rotate = "oblimin")
+f_EFA_oblimin
+```
+
+```{r}
+# Check the factor loadings.
+print(f_EFA_oblimin$loadings, cut=0.4)
+```
+```{r}
+# Create the path diagram of the latent factors.
+fa.diagram(f_EFA_oblimin)
+```
+# Remove fagsspes and selvst- have communalities below .4
+```{r}
+uten_fgs_ogSelv<-EFA_DATA[c(1,2,3,5:9)]
+```
+
+```{r}
+#Calculated Polychoric Correlation
+EFA_correl8items <- mixedCor(uten_fgs_ogSelv, c=NULL, p=1:8)
+#str(EFA_correl8items)
+```
+```{r}
+## Getting the correlation matrix of the dataset.
+EFA_polychoric8items <- EFA_correl8items$rho
+# Explore the correlation structure of the dataset.
+corrplot(EFA_polychoric8items, method = "number", order = "hclust")
+```
+
+```{r}
+# Oblimin rotation with 1 factors.
+f_EFA_oblimin8items <- fa(EFA_polychoric8items, nfactors = 1, rotate = "oblimin")
+f_EFA_oblimin8items
+```
+*Proportion Var 0.48, high residuals-RMSR= 1.0->not the best fit* 
+
+```{r}
+# Check the factor loadings.
+print(f_EFA_oblimin8items$loadings, cut=0.4)
+```
+
+```{r}
+# Create the path diagram of the latent factors.
+fa.diagram(f_EFA_oblimin8items)
+```
+
+
+
+**EFA WITH TWO FACTORS**
+```{r}
+# Oblimin rotation with 2 factors.
+f_EFA_oblimin2 <- fa(EFA_polychoric, nfactors = 2, rotate = "oblimin")
+f_EFA_oblimin2
+```
+*Cumulative Var 56%, rmsr=.04*
+
+```{r}
+# Check the factor loadings.
+print(f_EFA_oblimin2$loadings, cut=0.4)
+```
+
+```{r}
+# Create the path diagram of the latent factors.
+fa.diagram(f_EFA_oblimin2)
+```
+
+**EFA WITH THREE FACTORS**
+```{r}
+# Oblimin rotation with 3 factors.
+f_EFA_oblimin3 <- fa(EFA_polychoric, nfactors = 3, rotate = "oblimin")
+f_EFA_oblimin3
+```
+
+```{r}
+# Check the factor loadings.
+print(f_EFA_oblimin3$loadings, cut=0.35)
+```
+
+```{r}
+# Create the path diagram of the latent factors.
+fa.diagram(f_EFA_oblimin3)
+```
+
+
+
+
+
+
