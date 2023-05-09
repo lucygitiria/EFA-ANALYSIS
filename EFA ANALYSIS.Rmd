@@ -1,7 +1,6 @@
 ---
 title: "EFA ANALYSIS"
 author: "Lucy Gitiria"
-date: "2023-02-18"
 output: html_document
 ---
 ##  PACKAGES NEEDED
